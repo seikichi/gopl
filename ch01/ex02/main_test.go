@@ -5,13 +5,22 @@ import (
 	"testing"
 )
 
-func TestEcho(t *testing.T) {
-	outStream := new(bytes.Buffer)
-	cli := &CLI{outStream: outStream}
+var tests = []struct {
+	in  []string
+	out string
+}{
+	{[]string{""}, "\n"},
+	{[]string{"echo"}, "\n"},
+	{[]string{"echo", "Hello", "world!"}, "1\tHello\n2\tworld!\n"},
+}
 
-	input := []string{"echo", "Hello", "world!"}
-	cli.Run(input)
-	if got, want := outStream.String(), "1\tHello\n2\tworld!\n"; got != want {
-		t.Errorf("cli.Run(%q) = %q; want %q", input, got, want)
+func TestEcho(t *testing.T) {
+	for _, tt := range tests {
+		outStream := new(bytes.Buffer)
+		cli := &CLI{outStream: outStream}
+		cli.Run(tt.in)
+		if got := outStream.String(); got != tt.out {
+			t.Errorf("cli.Echo(%q) = %q; want %q", tt.in, got, tt.out)
+		}
 	}
 }
