@@ -28,21 +28,17 @@ const (
 func main() {
 	rand.Seed(time.Now().UTC().UnixNano())
 
-	if len(os.Args) > 1 && os.Args[1] == "web" {
-		handler := func(w http.ResponseWriter, r *http.Request) {
-			// TODO(seikichi): 雑 && テスト無い
-			cycles, err := strconv.Atoi(r.URL.Query().Get("cycles"))
-			if err != nil {
-				cycles = 5
-			}
-			fmt.Println(cycles, r.Form.Get("cycles"))
-			lissajous(w, cycles)
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		cycles, err := strconv.Atoi(r.URL.Query().Get("cycles"))
+		if err != nil {
+			cycles = 5
 		}
-		http.HandleFunc("/", handler)
-		log.Fatal(http.ListenAndServe("localhost:8000", nil))
-		return
+		fmt.Fprintf(os.Stderr, "cycles = %d\n", cycles)
+		lissajous(w, cycles)
 	}
-	lissajous(os.Stdout, 5)
+	http.HandleFunc("/", handler)
+	fmt.Fprintf(os.Stderr, "Serving lissajous on localhost port 8000 ...\n")
+	log.Fatal(http.ListenAndServe("localhost:8000", nil))
 }
 
 func lissajous(out io.Writer, cycles int) {
