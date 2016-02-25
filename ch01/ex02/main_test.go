@@ -20,7 +20,7 @@ func TestEcho(t *testing.T) {
 		cli := &CLI{outStream: outStream}
 		cli.Run(tt.in)
 		if got := outStream.String(); got != tt.out {
-			t.Errorf("cli.Echo(%q) = %q; want %q", tt.in, got, tt.out)
+			t.Errorf("cli.Run(%q) outputs %q; want %q", tt.in, got, tt.out)
 		}
 	}
 }

@@ -1,9 +1,41 @@
 package main
 
 import (
+	"bytes"
 	"io/ioutil"
 	"testing"
 )
+
+var tests = []struct {
+	in  []string
+	out string
+}{
+	{[]string{""}, "\n"},
+	{[]string{"echo"}, "\n"},
+	{[]string{"echo", "Hello", "world!"}, "Hello world!\n"},
+}
+
+func TestEcho(t *testing.T) {
+	for _, tt := range tests {
+		outStream := new(bytes.Buffer)
+		cli := &CLI{outStream: outStream}
+		cli.Run(tt.in)
+		if got := outStream.String(); got != tt.out {
+			t.Errorf("cli.Run(%q) outputs %q; want %q", tt.in, got, tt.out)
+		}
+	}
+}
+
+func TestEchoInefficiently(t *testing.T) {
+	for _, tt := range tests {
+		outStream := new(bytes.Buffer)
+		cli := &CLI{outStream: outStream}
+		cli.RunInefficiently(tt.in)
+		if got := outStream.String(); got != tt.out {
+			t.Errorf("cli.Run(%q) outputs %q; want %q", tt.in, got, tt.out)
+		}
+	}
+}
 
 func BenchmarkRun10(b *testing.B)   { benchmarkRun(b, 10) }
 func BenchmarkRun100(b *testing.B)  { benchmarkRun(b, 100) }

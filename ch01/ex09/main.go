@@ -8,13 +8,20 @@ import (
 	"strings"
 )
 
+// Exit codes
+const (
+	ExitCodeOK = iota
+	ExitCodeHTTPError
+	ExitCodeCopyError
+)
+
 // CLI is Command Line Interface.
 type CLI struct {
 	outStream, errStream io.Writer
 }
 
 // Run executes the echo program.
-func (c *CLI) Run(args []string) {
+func (c *CLI) Run(args []string) int {
 	for _, url := range args[1:] {
 		if !strings.HasPrefix(url, "http://") {
 			url = "http://" + url
@@ -22,18 +29,19 @@ func (c *CLI) Run(args []string) {
 		resp, err := http.Get(url)
 		if err != nil {
 			fmt.Fprintf(c.errStream, "fetch: %v\n", err)
-			os.Exit(1)
+			return ExitCodeHTTPError
 		}
 		defer resp.Body.Close()
 		fmt.Fprintf(c.outStream, "%s %s\n\n", resp.Proto, resp.Status)
 		if _, err = io.Copy(c.outStream, resp.Body); err != nil {
 			fmt.Fprintf(c.errStream, "fetch: reading %s: %v\n", url, err)
-			os.Exit(1)
+			return ExitCodeCopyError
 		}
 	}
+	return ExitCodeOK
 }
 
 func main() {
 	cli := &CLI{outStream: os.Stdout, errStream: os.Stderr}
-	cli.Run(os.Args)
+	os.Exit(cli.Run(os.Args))
 }
