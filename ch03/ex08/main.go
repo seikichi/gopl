@@ -27,6 +27,8 @@ func main() {
 		renderComplex128(img)
 	case "big.Float":
 		renderFloat(img)
+	case "big.Rat":
+		renderRat(img)
 	default:
 		flag.Usage()
 		os.Exit(-1)
@@ -119,7 +121,8 @@ func renderFloat(img *image.RGBA) {
 }
 
 func mandelbrotFloat(a, b *big.Float) color.Color {
-	var x, y, nx, ny, y2, f4, r2 big.Float
+	var x, y, nx, ny, x2, y2, f2, f4, r2, tmp big.Float
+	f2.SetInt64(2)
 	f4.SetInt64(4)
 	x.SetInt64(0)
 	y.SetInt64(0)
@@ -127,24 +130,89 @@ func mandelbrotFloat(a, b *big.Float) color.Color {
 	defer func() { recover() }()
 
 	for n := uint8(0); n < iterations; n++ {
-		y2.Mul(&y, &y)
-		y2.Neg(&y2)
-
-		nx.Mul(&x, &x)
-		nx.Add(&nx, &y2)
+		// Not update x2 and y2
+		// because they are already updated in the previous loop
+		nx.Sub(&x2, &y2)
 		nx.Add(&nx, a)
 
-		ny.SetInt64(2)
-		ny.Mul(&ny, &x)
-		ny.Mul(&ny, &y)
+		tmp.Mul(&x, &y)
+		ny.Mul(&f2, &tmp)
 		ny.Add(&ny, b)
 
 		x.Set(&nx)
 		y.Set(&ny)
 
-		r2.Mul(&x, &x)
+		x2.Mul(&x, &x)
 		y2.Mul(&y, &y)
-		r2.Add(&r2, &y2)
+		r2.Add(&x2, &y2)
+
+		if r2.Cmp(&f4) > 0 {
+			return color.Gray{255 - contrast*n}
+		}
+	}
+	return color.Black
+}
+
+func renderRat(img *image.RGBA) {
+	var yminR, ymaxMinR, heightR big.Rat
+	yminR.SetInt64(ymin)
+	ymaxMinR.SetInt64(ymax - ymin)
+	heightR.SetInt64(height)
+
+	var xminR, xmaxMinR, widthR big.Rat
+	xminR.SetInt64(xmin)
+	xmaxMinR.SetInt64(xmax - xmin)
+	widthR.SetInt64(width)
+
+	var y, x big.Rat
+	for py := int64(0); py < height; py++ {
+		// y := float64(py)/height*(ymax-ymin) + ymin
+		y.SetInt64(py)
+		y.Quo(&y, &heightR)
+		y.Mul(&y, &ymaxMinR)
+		y.Add(&y, &yminR)
+
+		for px := int64(0); px < width; px++ {
+			// x := float64(px)/width*(xmax-xmin) + xmin
+			x.SetInt64(px)
+			x.Quo(&x, &widthR)
+			x.Mul(&x, &xmaxMinR)
+			x.Add(&x, &xminR)
+
+			c := mandelbrotRat(&x, &y)
+			if c == nil {
+				c = color.Black
+			}
+			img.Set(int(px), int(py), c)
+		}
+	}
+}
+
+func mandelbrotRat(a, b *big.Rat) color.Color {
+	var x, y, nx, ny, x2, y2, f2, f4, r2, tmp big.Rat
+	f2.SetInt64(2)
+	f4.SetInt64(4)
+	x.SetInt64(0)
+	y.SetInt64(0)
+
+	defer func() { recover() }()
+
+	for n := uint8(0); n < iterations; n++ {
+		// Not update x2 and y2
+		// because they are already updated in the previous loop
+		nx.Sub(&x2, &y2)
+		nx.Add(&nx, a)
+
+		tmp.Mul(&x, &y)
+		ny.Mul(&f2, &tmp)
+		ny.Add(&ny, b)
+
+		x.Set(&nx)
+		y.Set(&ny)
+
+		x2.Mul(&x, &x)
+		y2.Mul(&y, &y)
+		r2.Add(&x2, &y2)
 
 		if r2.Cmp(&f4) > 0 {
 			return color.Gray{255 - contrast*n}
