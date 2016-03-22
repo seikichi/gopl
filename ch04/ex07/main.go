@@ -9,51 +9,79 @@ func main() {
 	fmt.Println(string(reverse([]byte("こんにちは!!"))))
 }
 
-type result struct {
+type subslice struct {
 	s    []byte
 	i, j int
 }
 
-// func (res result) pushFront(r rune) {
-// 	copy(s[ai:], []byte(string(rl)))
-// 	i += utf8.RuneLen(r)
-// }
+func (res *subslice) popFront() rune {
+	r, d := utf8.DecodeRune(res.s[res.i:res.j])
+	res.i += d
+	return r
+}
 
-// func (res result) pushBack(r rune) {
-// }
+func (res *subslice) popBack() rune {
+	r, d := utf8.DecodeLastRune(res.s[res.i:res.j])
+	res.j -= d
+	return r
+}
+
+func (res *subslice) pushFront(r rune) {
+	copy(res.s[res.i:], []byte(string(r)))
+	res.i += utf8.RuneLen(r)
+}
+
+func (res *subslice) pushBack(r rune) {
+	d := utf8.RuneLen(r)
+	copy(res.s[res.j-d:], []byte(string(r)))
+	res.j -= d
+}
+
+func (res *subslice) empty() bool {
+	return res.i >= res.j
+}
+
+type queue []rune
+
+func (q queue) front() rune  { return q[0] }
+func (q *queue) push(r rune) { *q = append(*q, r) }
+func (q *queue) pop()        { *q = (*q)[1:] }
+
+func frontInsertSpace(rest, result subslice) int {
+	return rest.i - result.i
+}
+
+func backInsertSpace(rest, result subslice) int {
+	return result.j - rest.j
+}
 
 func reverse(s []byte) []byte {
-	// Note: ai <= bi < bj <= aj
-	ai, aj := 0, len(s)
-	bi, bj := 0, len(s)
-	que := []rune{}
-	for bi < bj {
-		rl, dl := utf8.DecodeLastRune(s[bi:bj])
-		bj -= dl
-
-		for bi < bj && (bi-ai) < dl {
-			rh, dh := utf8.DecodeRune(s[bi:bj])
-			bi += dh
-			que = append(que, rh)
+	rest := subslice{s, 0, len(s)}
+	result := subslice{s, 0, len(s)}
+	// note: que は高々サイズ4の []rune
+	que := queue{}
+	for !rest.empty() {
+		// 後ろから要素を取り出して...
+		r := rest.popBack()
+		// 先頭に十分な空きができるまで先頭の要素をキューに追加
+		for !rest.empty() && frontInsertSpace(rest, result) < utf8.RuneLen(r) {
+			que.push(rest.popFront())
 		}
-		copy(s[ai:], []byte(string(rl)))
-		ai += dl
-
+		// 後ろから取り出した要素を先頭に移動
+		result.pushFront(r)
+		// 先頭から取り出した要素を詰めれるだけ後ろに逆順で詰める
 		for len(que) > 0 {
-			rh := que[0]
-			dh := utf8.RuneLen(rh)
-			if bj >= aj-dh {
+			if backInsertSpace(rest, result) < utf8.RuneLen(que.front()) {
 				break
 			}
-			copy(s[aj-dh:], []byte(string(rh)))
-			aj -= dh
-			que = que[1:]
+			result.pushBack(que.front())
+			que.pop()
 		}
 	}
-	for len(que) > 0 && ai < aj {
-		rh := que[0]
-		copy(s[ai:], []byte(string(rh)))
-		ai += utf8.RuneLen(rh)
+	// 取り出せる要素が無くなったら，キューの要素を余った隙間に後ろに逆順で追加
+	for len(que) > 0 {
+		result.pushBack(que.front())
+		que.pop()
 	}
 	return s
 }
