@@ -3,8 +3,10 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
+	"os/exec"
 	"strings"
 
 	"github.com/seikichi/gopl/ch04/ex11/github"
@@ -13,13 +15,42 @@ import (
 var usage = `Usage issues <command> [options]
 
 Commands:
+  create
+  show
+  search
   edit
   close
   reopen
 
 Environment Variables:
   GITHUB_ACCESS_TOKEN: github access token
+                       (see https://github.com/settings/tokens)
 `
+
+func getStringByEditor() string {
+	f, err := ioutil.TempFile("/tmp", "github-issues")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	cmd := exec.Command("vi", f.Name())
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Start(); err != nil {
+		log.Fatal(err)
+	}
+	if err := cmd.Wait(); err != nil {
+		log.Fatal(err)
+	}
+
+	b, err := ioutil.ReadFile(f.Name())
+	if err != nil {
+		log.Fatal(err)
+	}
+	return string(b)
+}
 
 func main() {
 	token := os.Getenv("GITHUB_ACCESS_TOKEN")
@@ -119,7 +150,7 @@ func create(client *github.Client, args []string) {
 
 Options:
   --title
-  --body
+  --body (set EDITOR if you want to use editor)
 `)
 	}
 
@@ -131,6 +162,10 @@ Options:
 
 	owner, repo, args := getOwnerAndRepo(fs, args)
 	fs.Parse(args)
+
+	if body == "EDITOR" {
+		body = getStringByEditor()
+	}
 
 	issue, err := client.CreateIssue(owner, repo, &github.IssueCreateParams{
 		Title: title,
@@ -149,7 +184,7 @@ func edit(client *github.Client, args []string) {
 
 Options:
   --title
-  --body
+  --body (set EDITOR if you want to use editor)
 `)
 	}
 
@@ -162,6 +197,10 @@ Options:
 	owner, repo, args := getOwnerAndRepo(fs, args)
 	number, args := getNumber(fs, args)
 	fs.Parse(args)
+
+	if body == "EDITOR" {
+		body = getStringByEditor()
+	}
 
 	issue, err := client.EditIssue(owner, repo, number, &github.IssueEditParams{
 		Title: title,
