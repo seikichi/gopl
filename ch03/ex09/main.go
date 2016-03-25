@@ -36,7 +36,7 @@ func main() {
 		render(x, y, m, width, height, w)
 	}
 	http.HandleFunc("/", handler)
-	log.Printf("Serving lissajous on localhost port %d ...\n", port)
+	log.Printf("Serving mandelbrot on localhost port %d ...\n", port)
 	log.Println("Supported queries: x, y, m (defaults are 0, 0, 1)")
 	log.Fatal(http.ListenAndServe(fmt.Sprintf("localhost:%d", port), nil))
 }
