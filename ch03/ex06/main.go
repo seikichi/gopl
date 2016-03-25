@@ -59,10 +59,10 @@ func renderWithSupersampling(img *image.RGBA) {
 				a += int(ma)
 			}
 			c := color.RGBA{
-				uint8(r / samplings),
-				uint8(g / samplings),
-				uint8(b / samplings),
-				uint8(a / samplings),
+				uint8((r >> 8) / samplings),
+				uint8((g >> 8) / samplings),
+				uint8((b >> 8) / samplings),
+				uint8((a >> 8) / samplings),
 			}
 			img.Set(px, py, c)
 		}
