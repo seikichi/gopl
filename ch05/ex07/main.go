@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 
 	"golang.org/x/net/html"
 )
@@ -49,8 +50,24 @@ var depth int
 
 func startElement(n *html.Node) {
 	if n.Type == html.ElementNode {
-		fmt.Printf("%*s<%s>\n", depth*2, "", n.Data)
+		fmt.Printf("%*s<%s", depth*2, "", n.Data)
+		for _, a := range n.Attr {
+			fmt.Printf(" %s=\"%s\"", a.Key, a.Val)
+		}
+		fmt.Println(">")
 		depth++
+	}
+
+	if n.Type == html.CommentNode {
+		fmt.Printf("%*s<!-- %s -->\n", depth*2, "", n.Data)
+	}
+
+	if n.Type == html.TextNode {
+		s := n.Data
+		if strings.HasPrefix(s, "\n") {
+			s = s[1:]
+		}
+		fmt.Print(s)
 	}
 }
 
