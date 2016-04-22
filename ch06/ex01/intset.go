@@ -34,7 +34,7 @@ func popCount(x uint64) int {
 func (s *IntSet) Remove(x int) {
 	word, bit := x/64, uint(x%64)
 	if word < len(s.words) {
-		s.words[word] ^= (1 << bit)
+		s.words[word] &^= (1 << bit)
 	}
 }
 

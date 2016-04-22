@@ -57,6 +57,7 @@ var removeTests = []struct {
 	{elems: []int{1}, x: 1, want: toIntSet()},
 	{elems: []int{1, 2, 3}, x: 3, want: toIntSet(1, 2)},
 	{elems: []int{1, 9, 42, 144}, x: 42, want: toIntSet(1, 9, 144)},
+	{elems: []int{1, 9, 42, 144}, x: 10, want: toIntSet(1, 9, 42, 144)},
 }
 
 func TestRemove(t *testing.T) {
