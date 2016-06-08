@@ -46,6 +46,13 @@ func write(buf *bytes.Buffer, e Expr) {
 		}
 		buf.WriteByte(')')
 
+	case min:
+		fmt.Fprintf(buf, "(min ")
+		write(buf, e.x)
+		fmt.Fprintf(buf, " ")
+		write(buf, e.y)
+		buf.WriteByte(')')
+
 	default:
 		panic(fmt.Sprintf("unknown Expr: %T", e))
 	}
