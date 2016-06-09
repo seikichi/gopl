@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/xml"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -21,7 +20,7 @@ type Element struct {
 
 func NewTree(dec *xml.Decoder) (Node, error) {
 	var stack []*Element // stack of elements
-	var lastElement *Element
+	var result *Element
 	for {
 		tok, err := dec.Token()
 		if err == io.EOF {
@@ -29,24 +28,29 @@ func NewTree(dec *xml.Decoder) (Node, error) {
 		} else if err != nil {
 			return nil, err
 		}
+
 		switch tok := tok.(type) {
 		case xml.StartElement:
-			elem := stack[len(stack)-1]
 			newElem := &Element{tok.Name, tok.Attr, []Node{}}
-			elem.Children = append(elem.Children, newElem)
+			if len(stack) > 0 {
+				elem := stack[len(stack)-1]
+				elem.Children = append(elem.Children, newElem)
+			}
 			stack = append(stack, newElem)
+			if result == nil {
+				result = newElem
+			}
 		case xml.EndElement:
-			lastElement = stack[len(stack)-1]
 			stack = stack[:len(stack)-1] // pop
 		case xml.CharData:
 			if len(stack) == 0 {
-				return nil, errors.New("invalid xml tree")
+				continue
 			}
 			elem := stack[len(stack)-1]
 			elem.Children = append(elem.Children, CharData(tok))
 		}
 	}
-	return lastElement, nil
+	return result, nil
 }
 
 func main() {
