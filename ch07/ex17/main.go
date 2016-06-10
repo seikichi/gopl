@@ -14,8 +14,7 @@ var class = flag.String("class", "", "search class")
 
 func main() {
 	dec := xml.NewDecoder(os.Stdin)
-	var stack []string // stack of element names
-	var elem xml.StartElement
+	var stack []xml.StartElement
 	for {
 		tok, err := dec.Token()
 		if err == io.EOF {
@@ -26,26 +25,40 @@ func main() {
 		}
 		switch tok := tok.(type) {
 		case xml.StartElement:
-			elem = tok
-			stack = append(stack, tok.Name.Local) // push
+			stack = append(stack, tok)
 		case xml.EndElement:
-			stack = stack[:len(stack)-1] // pop
+			stack = stack[:len(stack)-1]
 		case xml.CharData:
-			if !containsAll(stack, os.Args[1:]) {
+			if !containsAll(locals(stack), os.Args[1:]) {
 				continue
 			}
 
-			if *id != "" && !hasAttr(elem.Attr, "id", *id) {
-				continue
+			if *id != "" || *class != "" {
+				if len(stack) == 0 {
+					continue
+				}
+
+				elem := stack[len(stack)-1]
+				if *id != "" && !hasAttr(elem.Attr, "id", *id) {
+					continue
+				}
+
+				if *class != "" && !hasAttr(elem.Attr, "class", *class) {
+					continue
+				}
 			}
 
-			if *class != "" && !hasAttr(elem.Attr, "class", *class) {
-				continue
-			}
-
-			fmt.Printf("%s: %s\n", strings.Join(stack, " "), tok)
+			fmt.Printf("%s: %s\n", strings.Join(locals(stack), " "), tok)
 		}
 	}
+}
+
+func locals(s []xml.StartElement) []string {
+	var ret []string
+	for _, e := range s {
+		ret = append(ret, e.Name.Local)
+	}
+	return ret
 }
 
 func hasAttr(attrs []xml.Attr, name, value string) bool {
@@ -68,5 +81,6 @@ func containsAll(x, y []string) bool {
 		}
 		x = x[1:]
 	}
+
 	return false
 }
