@@ -5,9 +5,13 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net"
+	"os"
+	"path"
 	"regexp"
+	"strconv"
 )
 
 var port int
@@ -25,7 +29,10 @@ func init() {
 }
 
 type interpretor struct {
-	c net.Conn
+	c    net.Conn
+	cwd  string
+	host string
+	port int
 }
 
 func (ip *interpretor) start() {
@@ -43,8 +50,10 @@ func (ip *interpretor) start() {
 	}
 }
 
-var reUserCommand = regexp.MustCompile("^USER (.*?)$")
-var reTypeCommand = regexp.MustCompile("^TYPE (.*?)$")
+var reUserCommand = regexp.MustCompile("(?i)^USER (.*?)$")
+var reTypeCommand = regexp.MustCompile("(?i)^TYPE (.*?)$")
+var rePortCommand = regexp.MustCompile("(?i)^PORT (\\d+),(\\d+),(\\d+),(\\d+),(\\d+),(\\d+)$")
+var reRetrCommand = regexp.MustCompile("(?i)^RETR (.*?)$")
 
 func (ip *interpretor) handleCommand(c string) {
 	switch {
@@ -52,6 +61,10 @@ func (ip *interpretor) handleCommand(c string) {
 		ip.handleUserCommand(c)
 	case reTypeCommand.MatchString(c):
 		ip.handleTypeCommand(c)
+	case rePortCommand.MatchString(c):
+		ip.handlePortCommand(c)
+	case reRetrCommand.MatchString(c):
+		ip.handleRetrCommand(c)
 	default:
 		io.WriteString(ip.c, "502 Command not implemented.\r\n")
 	}
@@ -72,6 +85,51 @@ func (ip *interpretor) handleTypeCommand(c string) {
 	io.WriteString(ip.c, "200\r\n")
 }
 
+func (ip *interpretor) handlePortCommand(c string) {
+	ms := rePortCommand.FindStringSubmatch(c)
+	p1, _ := strconv.Atoi(ms[5])
+	p2, _ := strconv.Atoi(ms[6])
+
+	ip.host = fmt.Sprintf("%s.%s.%s.%s", ms[1], ms[2], ms[3], ms[4])
+	ip.port = p1*256 + p2
+	io.WriteString(ip.c, "200 PORT command successful.\r\n")
+}
+
+func (ip *interpretor) handleRetrCommand(c string) {
+	ms := reRetrCommand.FindStringSubmatch(c)
+	p := path.Join(ip.cwd, ms[1])
+
+	if _, err := os.Stat(p); err != nil {
+		io.WriteString(ip.c, "550 File not found.\r\n")
+		return
+	}
+
+	io.WriteString(ip.c, "150 File status okay; about to open data connection.\r\n")
+	conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", ip.host, ip.port))
+	if err != nil {
+		log.Println("error: ", err)
+		io.WriteString(ip.c, "425 Can't open data connection.\r\n")
+		return
+	}
+	defer conn.Close()
+
+	b, err := ioutil.ReadFile(p)
+	if err != nil {
+		log.Println("error: ", err)
+		io.WriteString(ip.c, "550 Can't open file.\r\n")
+		return
+	}
+
+	_, err = conn.Write(b)
+	if err != nil {
+		log.Println("error: ", err)
+		io.WriteString(ip.c, "426 Connection closed; transfer aborted.\r\n")
+		return
+	}
+
+	io.WriteString(ip.c, "250 File transfer completed.\r\n")
+}
+
 func main() {
 	flag.Parse()
 
@@ -86,7 +144,7 @@ func main() {
 			log.Print(err)
 			continue
 		}
-		ip := &interpretor{c: conn}
+		ip := &interpretor{c: conn, cwd: "."}
 		go ip.start()
 	}
 }
