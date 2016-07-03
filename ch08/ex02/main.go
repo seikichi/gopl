@@ -54,6 +54,7 @@ var reUserCommand = regexp.MustCompile("(?i)^USER (.*?)$")
 var reTypeCommand = regexp.MustCompile("(?i)^TYPE (.*?)$")
 var rePortCommand = regexp.MustCompile("(?i)^PORT (\\d+),(\\d+),(\\d+),(\\d+),(\\d+),(\\d+)$")
 var reRetrCommand = regexp.MustCompile("(?i)^RETR (.*?)$")
+var reNoopCommand = regexp.MustCompile("(?i)^NOOP$")
 
 func (ip *interpretor) handleCommand(c string) {
 	switch {
@@ -65,6 +66,8 @@ func (ip *interpretor) handleCommand(c string) {
 		ip.handlePortCommand(c)
 	case reRetrCommand.MatchString(c):
 		ip.handleRetrCommand(c)
+	case reNoopCommand.MatchString(c):
+		ip.handleNoopCommand(c)
 	default:
 		io.WriteString(ip.c, "502 Command not implemented.\r\n")
 	}
@@ -128,6 +131,10 @@ func (ip *interpretor) handleRetrCommand(c string) {
 	}
 
 	io.WriteString(ip.c, "250 File transfer completed.\r\n")
+}
+
+func (ip *interpretor) handleNoopCommand(c string) {
+	io.WriteString(ip.c, "200 NOOP command successful.\r\n")
 }
 
 func main() {
