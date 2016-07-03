@@ -1,17 +1,10 @@
 package main
 
 import (
-	"bufio"
 	"flag"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"log"
 	"net"
-	"os"
-	"path"
-	"regexp"
-	"strconv"
 )
 
 var port int
@@ -28,171 +21,6 @@ func init() {
 	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
 }
 
-type interpretor struct {
-	c    net.Conn
-	cwd  string
-	host string
-	port int
-}
-
-func (ip *interpretor) start() {
-	defer ip.c.Close()
-	io.WriteString(ip.c, "220\r\n")
-
-	scanner := bufio.NewScanner(ip.c)
-	for scanner.Scan() {
-		command := scanner.Text()
-		log.Println(command)
-
-		if !ip.handleCommand(command) {
-			break
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		log.Println("error:", err)
-	}
-}
-
-var reUserCommand = regexp.MustCompile("(?i)^USER (.*?)$")
-var reQuitCommand = regexp.MustCompile("(?i)^QUIT$")
-var reTypeCommand = regexp.MustCompile("(?i)^TYPE (.*?)$")
-var rePortCommand = regexp.MustCompile("(?i)^PORT (\\d+),(\\d+),(\\d+),(\\d+),(\\d+),(\\d+)$")
-var reStruCommand = regexp.MustCompile("(?i)^STRU (.*?)$")
-var reStorCommand = regexp.MustCompile("(?i)^STOR (.*?)$")
-var reRetrCommand = regexp.MustCompile("(?i)^RETR (.*?)$")
-var reNoopCommand = regexp.MustCompile("(?i)^NOOP$")
-
-func (ip *interpretor) handleCommand(c string) (cont bool) {
-	switch {
-	case reUserCommand.MatchString(c):
-		ip.handleUserCommand(c)
-	case reTypeCommand.MatchString(c):
-		ip.handleTypeCommand(c)
-	case rePortCommand.MatchString(c):
-		ip.handlePortCommand(c)
-	case reStruCommand.MatchString(c):
-		ip.handleStruCommand(c)
-	case reRetrCommand.MatchString(c):
-		ip.handleRetrCommand(c)
-	case reStorCommand.MatchString(c):
-		ip.handleStorCommand(c)
-	case reNoopCommand.MatchString(c):
-		ip.handleNoopCommand(c)
-	case reQuitCommand.MatchString(c):
-		ip.handleQuitCommand(c)
-		return false
-	default:
-		io.WriteString(ip.c, "502 Command not implemented.\r\n")
-	}
-	return true
-}
-
-func (ip *interpretor) handleUserCommand(c string) {
-	io.WriteString(ip.c, "230 User logged in, proceed.\r\n")
-}
-
-func (ip *interpretor) handleTypeCommand(c string) {
-	ms := reTypeCommand.FindStringSubmatch(c)
-
-	typeCode := ms[1]
-	if typeCode != "A" && typeCode != "I" {
-		io.WriteString(ip.c, "504 Command not implemented for that parameter.\r\n")
-		return
-	}
-	io.WriteString(ip.c, "200\r\n")
-}
-
-func (ip *interpretor) handlePortCommand(c string) {
-	ms := rePortCommand.FindStringSubmatch(c)
-	p1, _ := strconv.Atoi(ms[5])
-	p2, _ := strconv.Atoi(ms[6])
-
-	ip.host = fmt.Sprintf("%s.%s.%s.%s", ms[1], ms[2], ms[3], ms[4])
-	ip.port = p1*256 + p2
-	io.WriteString(ip.c, "200 PORT command successful.\r\n")
-}
-
-func (ip *interpretor) handleStruCommand(c string) {
-	// ms := reStruCommand.FindStringSubmatch(c)
-	io.WriteString(ip.c, "200 STRU command successful.\r\n")
-}
-
-func (ip *interpretor) handleRetrCommand(c string) {
-	ms := reRetrCommand.FindStringSubmatch(c)
-	p := path.Join(ip.cwd, ms[1])
-
-	if _, err := os.Stat(p); err != nil {
-		io.WriteString(ip.c, "550 File not found.\r\n")
-		return
-	}
-
-	io.WriteString(ip.c, "150 File status okay; about to open data connection.\r\n")
-	conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", ip.host, ip.port))
-	if err != nil {
-		log.Println("error: ", err)
-		io.WriteString(ip.c, "425 Can't open data connection.\r\n")
-		return
-	}
-	defer conn.Close()
-
-	b, err := ioutil.ReadFile(p)
-	if err != nil {
-		log.Println("error: ", err)
-		io.WriteString(ip.c, "550 Can't open file.\r\n")
-		return
-	}
-
-	_, err = conn.Write(b)
-	if err != nil {
-		log.Println("error: ", err)
-		io.WriteString(ip.c, "426 Connection closed; transfer aborted.\r\n")
-		return
-	}
-
-	io.WriteString(ip.c, "250 File transfer completed.\r\n")
-}
-
-func (ip *interpretor) handleStorCommand(c string) {
-	ms := reStorCommand.FindStringSubmatch(c)
-	p := path.Join(ip.cwd, ms[1])
-
-	io.WriteString(ip.c, "150 File status okay; about to open data connection.\r\n")
-
-	conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", ip.host, ip.port))
-	if err != nil {
-		log.Println("error: ", err)
-		io.WriteString(ip.c, "425 Can't open data connection.\r\n")
-		return
-	}
-	defer conn.Close()
-
-	f, err := os.Create(p)
-	if err != nil {
-		log.Println("error: ", err)
-		io.WriteString(ip.c, "450 Requested file action not taken.\r\n")
-		return
-	}
-	defer f.Close()
-
-	_, err = io.Copy(f, conn)
-	if err != nil {
-		log.Println("error: ", err)
-		io.WriteString(ip.c, "450 Requested file action not taken.\r\n")
-		return
-	}
-
-	io.WriteString(ip.c, "250 File transfer completed.\r\n")
-}
-
-func (ip *interpretor) handleNoopCommand(c string) {
-	io.WriteString(ip.c, "200 NOOP command successful.\r\n")
-}
-
-func (ip *interpretor) handleQuitCommand(c string) {
-	io.WriteString(ip.c, "221 Service closing control connection.\r\n")
-}
-
 func main() {
 	flag.Parse()
 
@@ -207,7 +35,7 @@ func main() {
 			log.Print(err)
 			continue
 		}
-		ip := &interpretor{c: conn, cwd: "."}
+		ip := newInterpreter(conn)
 		go ip.start()
 	}
 }
