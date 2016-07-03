@@ -192,5 +192,44 @@ func (ip *interpreter) handleQuitCommand(c string) {
 }
 
 func (ip *interpreter) handleListCommand(c string) {
-	ip.reply("502", "Command not implemented.")
+	ms := reListCommand.FindStringSubmatch(c)
+	p := path.Join(ip.cwd, ms[1])
+
+	ip.reply("150", "Open data connection.")
+	conn, err := net.Dial("tcp", ip.addr)
+	if err != nil {
+		log.Println("error: ", err)
+		ip.reply("425", "Can't open data connection.")
+		return
+	}
+	defer conn.Close()
+
+	info, err := os.Stat(p)
+	if err != nil {
+		ip.reply("550", "File or Directory not found.")
+		return
+	}
+
+	var result []byte
+	if info.IsDir() {
+		is, err := ioutil.ReadDir(p)
+		if err != nil {
+			ip.reply("550", "File or Directory not found.")
+			return
+		}
+
+		for _, i := range is {
+			result = append(result, []byte(i.Name()+"\r\n")...)
+		}
+	} else {
+		result = []byte(fmt.Sprintf("%s\r\n", p))
+	}
+
+	if _, err = conn.Write(result); err != nil {
+		log.Println("error: ", err)
+		ip.reply("426", "Connection closed; transfer aborted.")
+		return
+	}
+
+	ip.reply("250", "File transfer completed.")
 }
