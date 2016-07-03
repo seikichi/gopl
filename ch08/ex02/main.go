@@ -43,20 +43,27 @@ func (ip *interpretor) start() {
 	for scanner.Scan() {
 		command := scanner.Text()
 		log.Println(command)
-		ip.handleCommand(command)
+
+		if !ip.handleCommand(command) {
+			break
+		}
 	}
+
 	if err := scanner.Err(); err != nil {
 		log.Println("error:", err)
 	}
 }
 
 var reUserCommand = regexp.MustCompile("(?i)^USER (.*?)$")
+var reQuitCommand = regexp.MustCompile("(?i)^QUIT$")
 var reTypeCommand = regexp.MustCompile("(?i)^TYPE (.*?)$")
 var rePortCommand = regexp.MustCompile("(?i)^PORT (\\d+),(\\d+),(\\d+),(\\d+),(\\d+),(\\d+)$")
+var reStruCommand = regexp.MustCompile("(?i)^STRU (.*?)$")
+var reStorCommand = regexp.MustCompile("(?i)^STOR (.*?)$")
 var reRetrCommand = regexp.MustCompile("(?i)^RETR (.*?)$")
 var reNoopCommand = regexp.MustCompile("(?i)^NOOP$")
 
-func (ip *interpretor) handleCommand(c string) {
+func (ip *interpretor) handleCommand(c string) (cont bool) {
 	switch {
 	case reUserCommand.MatchString(c):
 		ip.handleUserCommand(c)
@@ -64,13 +71,21 @@ func (ip *interpretor) handleCommand(c string) {
 		ip.handleTypeCommand(c)
 	case rePortCommand.MatchString(c):
 		ip.handlePortCommand(c)
+	case reStruCommand.MatchString(c):
+		ip.handleStruCommand(c)
 	case reRetrCommand.MatchString(c):
 		ip.handleRetrCommand(c)
+	case reStorCommand.MatchString(c):
+		ip.handleStorCommand(c)
 	case reNoopCommand.MatchString(c):
 		ip.handleNoopCommand(c)
+	case reQuitCommand.MatchString(c):
+		ip.handleQuitCommand(c)
+		return false
 	default:
 		io.WriteString(ip.c, "502 Command not implemented.\r\n")
 	}
+	return true
 }
 
 func (ip *interpretor) handleUserCommand(c string) {
@@ -96,6 +111,11 @@ func (ip *interpretor) handlePortCommand(c string) {
 	ip.host = fmt.Sprintf("%s.%s.%s.%s", ms[1], ms[2], ms[3], ms[4])
 	ip.port = p1*256 + p2
 	io.WriteString(ip.c, "200 PORT command successful.\r\n")
+}
+
+func (ip *interpretor) handleStruCommand(c string) {
+	// ms := reStruCommand.FindStringSubmatch(c)
+	io.WriteString(ip.c, "200 STRU command successful.\r\n")
 }
 
 func (ip *interpretor) handleRetrCommand(c string) {
@@ -133,8 +153,44 @@ func (ip *interpretor) handleRetrCommand(c string) {
 	io.WriteString(ip.c, "250 File transfer completed.\r\n")
 }
 
+func (ip *interpretor) handleStorCommand(c string) {
+	ms := reStorCommand.FindStringSubmatch(c)
+	p := path.Join(ip.cwd, ms[1])
+
+	io.WriteString(ip.c, "150 File status okay; about to open data connection.\r\n")
+
+	conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", ip.host, ip.port))
+	if err != nil {
+		log.Println("error: ", err)
+		io.WriteString(ip.c, "425 Can't open data connection.\r\n")
+		return
+	}
+	defer conn.Close()
+
+	f, err := os.Create(p)
+	if err != nil {
+		log.Println("error: ", err)
+		io.WriteString(ip.c, "450 Requested file action not taken.\r\n")
+		return
+	}
+	defer f.Close()
+
+	_, err = io.Copy(f, conn)
+	if err != nil {
+		log.Println("error: ", err)
+		io.WriteString(ip.c, "450 Requested file action not taken.\r\n")
+		return
+	}
+
+	io.WriteString(ip.c, "250 File transfer completed.\r\n")
+}
+
 func (ip *interpretor) handleNoopCommand(c string) {
 	io.WriteString(ip.c, "200 NOOP command successful.\r\n")
+}
+
+func (ip *interpretor) handleQuitCommand(c string) {
+	io.WriteString(ip.c, "221 Service closing control connection.\r\n")
 }
 
 func main() {
