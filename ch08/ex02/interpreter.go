@@ -11,6 +11,7 @@ import (
 	"path"
 	"regexp"
 	"strconv"
+	"strings"
 )
 
 type interpreter struct {
@@ -59,6 +60,7 @@ var reStorCommand = regexp.MustCompile("(?i)^STOR (.+?)$")
 var reRetrCommand = regexp.MustCompile("(?i)^RETR (.+?)$")
 var reNoopCommand = regexp.MustCompile("(?i)^NOOP$")
 var reListCommand = regexp.MustCompile("(?i)^LIST(?: (.+?))?$")
+var reCwdCommand = regexp.MustCompile("(?i)^CWD (.+?)$")
 
 func (ip *interpreter) handleCommand(c string) (cont bool) {
 	switch {
@@ -76,6 +78,8 @@ func (ip *interpreter) handleCommand(c string) (cont bool) {
 		ip.handleStorCommand(c)
 	case reListCommand.MatchString(c):
 		ip.handleListCommand(c)
+	case reCwdCommand.MatchString(c):
+		ip.handleCwdCommand(c)
 	case reNoopCommand.MatchString(c):
 		ip.handleNoopCommand(c)
 	case reQuitCommand.MatchString(c):
@@ -189,6 +193,24 @@ func (ip *interpreter) handleNoopCommand(c string) {
 
 func (ip *interpreter) handleQuitCommand(c string) {
 	ip.reply("221", "Service closing control connection.")
+}
+
+func (ip *interpreter) handleCwdCommand(c string) {
+	ms := reCwdCommand.FindStringSubmatch(c)
+	p := ms[1]
+
+	if !strings.HasPrefix(p, "/") {
+		p = path.Join(ip.cwd, p)
+	}
+
+	info, err := os.Stat(p)
+	if err != nil || !info.IsDir() {
+		ip.reply("550", "Directory not found.")
+		return
+	}
+	ip.cwd = p
+
+	ip.reply("250", "Requested file action okay, completed.")
 }
 
 func (ip *interpreter) handleListCommand(c string) {
