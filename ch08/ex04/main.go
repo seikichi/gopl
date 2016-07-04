@@ -24,7 +24,7 @@ func handleConn(c net.Conn) {
 	for input.Scan() {
 		wg.Add(1)
 		go func(s string) {
-			echo(c, input.Text(), 1*time.Second)
+			echo(c, s, 1*time.Second)
 			wg.Done()
 		}(input.Text())
 	}
