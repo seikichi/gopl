@@ -7,6 +7,7 @@ import (
 	"net"
 	"sort"
 	"strings"
+	"time"
 )
 
 type client chan<- string
@@ -55,11 +56,26 @@ func handleConn(conn net.Conn) {
 	messages <- who + " has arrived"
 	entering <- enter{client: ch, name: who}
 
-	input := bufio.NewScanner(conn)
-	for input.Scan() {
-		messages <- who + ": " + input.Text()
+	inputs := make(chan string)
+	go func() {
+		s := bufio.NewScanner(conn)
+		for s.Scan() {
+			inputs <- s.Text()
+		}
+		// NOTE: ignoring potential errors from input.Err()
+	}()
+
+loop:
+	for {
+		select {
+		case text := <-inputs:
+			messages <- who + ": " + text
+		case <-time.After(5 * time.Minute):
+			fmt.Fprintln(conn, "Bye")
+			conn.Close()
+			break loop
+		}
 	}
-	// NOTE: ignoring potential errors from input.Err()
 
 	leaving <- ch
 	messages <- who + " has left"
