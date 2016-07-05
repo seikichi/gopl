@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -47,11 +48,26 @@ func broadcaster() {
 	}
 }
 
+var reUserCommand = regexp.MustCompile("(?i)^USER ([^ ]+?)$")
+
 func handleConn(conn net.Conn) {
+	s := bufio.NewScanner(conn)
+
+	var who string
+	for s.Scan() {
+		t := s.Text()
+		if !reUserCommand.MatchString(t) {
+			fmt.Fprintf(conn, "Give me your name by typing `USER $name`\n")
+			continue
+		}
+		ms := reUserCommand.FindStringSubmatch(t)
+		who = ms[1]
+		break
+	}
+
 	ch := make(chan string)
 	go clientWriter(conn, ch)
 
-	who := conn.RemoteAddr().String()
 	ch <- "You are " + who
 	messages <- who + " has arrived"
 	entering <- enter{client: ch, name: who}
