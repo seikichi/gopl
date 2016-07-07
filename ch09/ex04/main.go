@@ -1,6 +1,10 @@
 package main
 
-import "flag"
+import (
+	"flag"
+	"fmt"
+	"os"
+)
 
 func pipeline(size int) (chan<- struct{}, <-chan struct{}) {
 	var in chan<- struct{}
@@ -27,7 +31,10 @@ func main() {
 	flag.IntVar(&size, "size", 8000, "pipeline size")
 	flag.Parse()
 
+	fmt.Fprintf(os.Stderr, "Create a pipeline (size = %d) ...\n", size)
 	in, out := pipeline(size)
+
+	fmt.Fprintf(os.Stderr, "Send `struct{}{}` to the pipeline (size = %d) ...\n", size)
 	go func() { in <- struct{}{} }()
 	<-out
 }
