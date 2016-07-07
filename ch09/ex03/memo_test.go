@@ -1,6 +1,7 @@
 package memo
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -87,4 +88,29 @@ func TestConcurrent(t *testing.T) {
 
 	c := make(Cancel)
 	Concurrent(t, m, c)
+}
+
+func waitForCancel(_ string, cancel Cancel) (interface{}, error) {
+	<-cancel
+	return nil, errors.New("cancelled")
+}
+
+func TestCancel(t *testing.T) {
+	m := New(waitForCancel)
+	defer m.Close()
+
+	c := make(chan struct{})
+	results := make(chan result)
+	go func() {
+		v, err := m.Get("", c)
+		results <- result{v, err}
+	}()
+
+	<-time.After(1 * time.Second)
+	close(c)
+	r := <-results
+	if r.value != nil || r.err == nil {
+		t.Errorf("New(waitForCancel).Get(...) = %#v, %#v; want nil, error (!= nil)",
+			r.value, r.err)
+	}
 }

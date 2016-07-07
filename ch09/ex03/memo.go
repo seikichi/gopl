@@ -2,16 +2,7 @@ package memo
 
 import "errors"
 
-type Cancel chan struct{}
-
-func (c Cancel) done() bool {
-	select {
-	case <-c:
-		return true
-	default:
-		return false
-	}
-}
+type Cancel <-chan struct{}
 
 // Func is the type of the function to memoize.
 type Func func(key string, cancel Cancel) (interface{}, error)
@@ -23,8 +14,9 @@ type result struct {
 }
 
 type entry struct {
-	res   result
-	ready chan struct{} // closed when res is ready
+	res    result
+	ready  chan struct{} // closed when res is ready
+	cancel Cancel
 }
 
 // A request is a message requesting that the Func be applied to key.
@@ -50,7 +42,7 @@ func (memo *Memo) Get(key string, cancel Cancel) (interface{}, error) {
 	case res := <-response:
 		return res.value, res.err
 	case <-cancel:
-		return nil, errors.New("cancelled")
+		return nil, errors.New("Get cancelled")
 	}
 }
 
@@ -58,31 +50,44 @@ func (memo *Memo) Close() { close(memo.requests) }
 
 func (memo *Memo) server(f Func) {
 	cache := make(map[string]*entry)
+
 	for req := range memo.requests {
 		e := cache[req.key]
-		if e == nil {
+		if e == nil || !e.cancelled() {
 			// This is the first request for this key.
-			e = &entry{ready: make(chan struct{})}
+			e = &entry{ready: make(chan struct{}), cancel: req.cancel}
 			cache[req.key] = e
-			go e.call(f, req.key, req.cancel) // call f(key)
+			go e.call(f, req.key) // call f(key)
 		}
-		go e.deliver(req.response, req.cancel)
+		go e.deliver(req.response)
 	}
 }
 
-func (e *entry) call(f Func, key string, cancel Cancel) {
+func (e *entry) call(f Func, key string) {
 	// Evaluate the function.
-	e.res.value, e.res.err = f(key, cancel)
-	// Broadcast the ready condition.
-	close(e.ready)
+	e.res.value, e.res.err = f(key, e.cancel)
+
+	if !e.cancelled() {
+		// Broadcast the ready condition.
+		close(e.ready)
+	}
 }
 
-func (e *entry) deliver(response chan<- result, cancel Cancel) {
+func (e *entry) deliver(response chan<- result) {
 	// Wait for the ready condition.
 	select {
 	case <-e.ready:
 		// Send the result to the client.
 		response <- e.res
-	case <-cancel:
+	case <-e.cancel:
+	}
+}
+
+func (e *entry) cancelled() bool {
+	select {
+	case <-e.cancel:
+		return true
+	default:
+		return false
 	}
 }
