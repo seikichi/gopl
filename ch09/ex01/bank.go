@@ -2,12 +2,13 @@ package bank
 
 type withdrawRequest struct {
 	amount int
-	c      chan bool
+	c      chan<- bool
 }
 
-var deposits = make(chan int)              // send amount to deposit
-var balances = make(chan int)              // receive balance
-var withdraws = make(chan withdrawRequest) // receive balance
+var resets = make(chan struct{})
+var deposits = make(chan int)
+var balances = make(chan int)
+var withdraws = make(chan withdrawRequest)
 
 func Deposit(amount int) { deposits <- amount }
 func Balance() int       { return <-balances }
@@ -17,10 +18,14 @@ func Withdraw(amount int) bool {
 	return <-c
 }
 
+func reset() { resets <- struct{}{} }
+
 func teller() {
-	var balance int // balance is confined to teller goroutine
+	var balance int
 	for {
 		select {
+		case <-resets:
+			balance = 0
 		case amount := <-deposits:
 			balance += amount
 		case balances <- balance:
@@ -30,13 +35,11 @@ func teller() {
 				continue
 			}
 			balance -= req.amount
-			req.c <- false
+			req.c <- true
 		}
 	}
 }
 
 func init() {
-	go teller() // start the monitor goroutine
+	go teller()
 }
-
-//!-

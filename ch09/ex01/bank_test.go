@@ -1,25 +1,39 @@
-package bank_test
+package bank
 
 import (
-	"fmt"
 	"testing"
-
-	"gopl.io/ch9/bank1"
 )
 
+func TestWithdraw(t *testing.T) {
+	reset()
+	Deposit(300)
+
+	if Withdraw(500) {
+		t.Errorf("Deposit(300); Withdraw(500) = true, want false")
+	}
+
+	if !Withdraw(200) {
+		t.Errorf("Deposit(300); Withdraw(200) = false, want true")
+	}
+
+	if got, want := Balance(), 100; got != want {
+		t.Errorf("Deposit(300); Withdraw(200); Balance() = %d, want %d", got, want)
+	}
+}
+
 func TestBank(t *testing.T) {
+	reset()
 	done := make(chan struct{})
 
 	// Alice
 	go func() {
-		bank.Deposit(200)
-		fmt.Println("=", bank.Balance())
+		Deposit(200)
 		done <- struct{}{}
 	}()
 
 	// Bob
 	go func() {
-		bank.Deposit(100)
+		Deposit(100)
 		done <- struct{}{}
 	}()
 
@@ -27,7 +41,7 @@ func TestBank(t *testing.T) {
 	<-done
 	<-done
 
-	if got, want := bank.Balance(), 300; got != want {
+	if got, want := Balance(), 300; got != want {
 		t.Errorf("Balance = %d, want %d", got, want)
 	}
 }
