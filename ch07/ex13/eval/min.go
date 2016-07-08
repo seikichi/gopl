@@ -10,7 +10,7 @@ type min struct {
 }
 
 func (e min) String() string {
-	return fmt.Sprintf("(min %c %s)", e.x, e.y)
+	return fmt.Sprintf("min(%s, %s)", e.x, e.y)
 }
 
 func (b min) Eval(env Env) float64 {

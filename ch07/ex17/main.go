@@ -13,6 +13,8 @@ var id = flag.String("id", "", "search id")
 var class = flag.String("class", "", "search class")
 
 func main() {
+	flag.Parse()
+
 	dec := xml.NewDecoder(os.Stdin)
 	var stack []xml.StartElement
 	for {
@@ -29,7 +31,7 @@ func main() {
 		case xml.EndElement:
 			stack = stack[:len(stack)-1]
 		case xml.CharData:
-			if !containsAll(locals(stack), os.Args[1:]) {
+			if !containsAll(locals(stack), flag.Args()) {
 				continue
 			}
 
