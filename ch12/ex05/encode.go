@@ -6,7 +6,7 @@ import (
 	"reflect"
 )
 
-// Marshal encodes a Go value in S-expression form.
+// Marshal encodes a Go value in JSON form.
 func Marshal(v interface{}) ([]byte, error) {
 	var buf bytes.Buffer
 	if err := encode(&buf, reflect.ValueOf(v)); err != nil {
@@ -18,7 +18,7 @@ func Marshal(v interface{}) ([]byte, error) {
 func encode(buf *bytes.Buffer, v reflect.Value) error {
 	switch v.Kind() {
 	case reflect.Invalid:
-		buf.WriteString("nil")
+		buf.WriteString("null")
 
 	case reflect.Int, reflect.Int8, reflect.Int16,
 		reflect.Int32, reflect.Int64:
@@ -35,70 +35,65 @@ func encode(buf *bytes.Buffer, v reflect.Value) error {
 		return encode(buf, v.Elem())
 
 	case reflect.Array, reflect.Slice: // (value ...)
-		buf.WriteByte('(')
+		buf.WriteByte('[')
 		for i := 0; i < v.Len(); i++ {
 			if i > 0 {
-				buf.WriteByte(' ')
+				fmt.Fprintf(buf, ", ")
 			}
 			if err := encode(buf, v.Index(i)); err != nil {
 				return err
 			}
 		}
-		buf.WriteByte(')')
+		buf.WriteByte(']')
 
 	case reflect.Struct: // ((name value) ...)
-		buf.WriteByte('(')
+		buf.WriteByte('{')
 		for i := 0; i < v.NumField(); i++ {
 			if i > 0 {
-				buf.WriteByte(' ')
+				fmt.Fprintf(buf, ", ")
 			}
-			fmt.Fprintf(buf, "(%s ", v.Type().Field(i).Name)
+			fmt.Fprintf(buf, "%q: ", v.Type().Field(i).Name)
 			if err := encode(buf, v.Field(i)); err != nil {
 				return err
 			}
-			buf.WriteByte(')')
 		}
-		buf.WriteByte(')')
+		buf.WriteByte('}')
 
 	case reflect.Map: // ((key value) ...)
-		buf.WriteByte('(')
+		buf.WriteByte('{')
 		for i, key := range v.MapKeys() {
 			if i > 0 {
-				buf.WriteByte(' ')
+				fmt.Fprintf(buf, ", ")
 			}
-			buf.WriteByte('(')
+			if key.Kind() != reflect.String {
+				return fmt.Errorf("unsupported map key: %s", key.Type())
+			}
 			if err := encode(buf, key); err != nil {
 				return err
 			}
-			buf.WriteByte(' ')
+			fmt.Fprintf(buf, ": ")
 			if err := encode(buf, v.MapIndex(key)); err != nil {
 				return err
 			}
-			buf.WriteByte(')')
 		}
-		buf.WriteByte(')')
+		buf.WriteByte('}')
 	case reflect.Bool:
 		if v.Bool() {
-			buf.WriteByte('t')
+			fmt.Fprintf(buf, "true")
 		} else {
-			fmt.Fprintf(buf, "nil")
+			fmt.Fprintf(buf, "false")
 		}
-	case reflect.Complex64, reflect.Complex128:
-		c := v.Complex()
-		fmt.Fprintf(buf, "#C(%f %f)", real(c), imag(c))
 	case reflect.Float32, reflect.Float64:
 		fmt.Fprintf(buf, "%f", v.Float())
 	case reflect.Interface:
 		if v.IsNil() {
-			fmt.Fprintf(buf, "nil")
+			fmt.Fprintf(buf, "null")
 			return nil
 		}
-		fmt.Fprintf(buf, "(%q ", v.Elem().Type().String())
 		if err := encode(buf, v.Elem()); err != nil {
 			return err
 		}
-		buf.WriteByte(')')
-	default: // chan, func
+	default: // complex, chan, func
 		return fmt.Errorf("unsupported type: %s", v.Type())
 	}
 	return nil

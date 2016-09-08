@@ -15,6 +15,25 @@ func Marshal(v interface{}) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+func isZeroValue(v reflect.Value) bool {
+	switch v.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16,
+		reflect.Int32, reflect.Int64:
+		return v.Int() == 0
+	case reflect.Uint, reflect.Uint8, reflect.Uint16,
+		reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		return v.Uint() == 0
+	case reflect.Bool:
+		return !v.Bool()
+	case reflect.String:
+		return v.String() == ""
+	case reflect.Chan, reflect.Func, reflect.Ptr, reflect.Slice, reflect.Map:
+		return v.Pointer() == 0
+	default:
+	}
+	return false
+}
+
 func encode(buf *bytes.Buffer, v reflect.Value) error {
 	switch v.Kind() {
 	case reflect.Invalid:
@@ -48,14 +67,23 @@ func encode(buf *bytes.Buffer, v reflect.Value) error {
 
 	case reflect.Struct: // ((name value) ...)
 		buf.WriteByte('(')
+		first := true
+
 		for i := 0; i < v.NumField(); i++ {
-			if i > 0 {
+			if isZeroValue(v.Field(i)) {
+				continue
+			}
+
+			if !first {
 				buf.WriteByte(' ')
 			}
+			first = false
+
 			fmt.Fprintf(buf, "(%s ", v.Type().Field(i).Name)
 			if err := encode(buf, v.Field(i)); err != nil {
 				return err
 			}
+
 			buf.WriteByte(')')
 		}
 		buf.WriteByte(')')

@@ -6,12 +6,16 @@ var tests = []struct {
 	in   interface{}
 	want string
 }{
-	{true, "t"},
-	{false, "nil"},
+	{true, "true"},
+	{false, "false"},
 	{1.0, "1.000000"},
-	{1 + 2i, "#C(1.000000 2.000000)"},
-	{struct{ v interface{} }{[]int{1, 2, 3}}, `((v ("[]int" (1 2 3))))`},
-	{struct{ v interface{} }{nil}, `((v nil))`},
+	{[]int{1, 2, 3}, "[1, 2, 3]"},
+	{map[string]int{"x": 10, "y": 20}, `{"x": 10, "y": 20}`},
+	{map[string][]int{"x": []int{10}, "y": []int{1, 2}}, `{"x": [10], "y": [1, 2]}`},
+	{struct {
+		x string
+		y []int
+	}{"A", []int{1, 2, 3}}, `{"x": "A", "y": [1, 2, 3]}`},
 }
 
 func TestMarshal(t *testing.T) {
