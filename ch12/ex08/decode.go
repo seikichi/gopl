@@ -11,13 +11,14 @@ import (
 
 type Decoder struct {
 	lex *lexer
+	c   <-chan tokenResult
 }
 
 func NewDecoder(r io.Reader) *Decoder {
 	lex := &lexer{scan: scanner.Scanner{Mode: scanner.GoTokens}}
 	lex.scan.Init(r)
 	lex.next()
-	return &Decoder{lex}
+	return &Decoder{lex, nil}
 }
 
 func (d *Decoder) Decode(v interface{}) (err error) {
