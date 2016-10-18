@@ -31,6 +31,12 @@ func (d *Decoder) Decode(v interface{}) (err error) {
 	return nil
 }
 
+var typeRegistry = make(map[string]reflect.Type)
+
+func AddType(name string, typ reflect.Type) {
+	typeRegistry[name] = typ
+}
+
 // Unmarshal parses S-expression data and populates the variable
 // whose address is in the non-nil pointer out.
 func Unmarshal(data []byte, out interface{}) error {
@@ -79,6 +85,11 @@ func read(lex *lexer, v reflect.Value) {
 	case scanner.Ident:
 		// The only valid identifiers are
 		// "nil" and struct field names.
+		if lex.text() == "t" {
+			v.SetBool(true)
+			lex.next()
+			return
+		}
 		if lex.text() == "nil" {
 			v.Set(reflect.Zero(v.Type()))
 			lex.next()
@@ -94,6 +105,24 @@ func read(lex *lexer, v reflect.Value) {
 		v.SetInt(int64(i))
 		lex.next()
 		return
+	case scanner.Float:
+		f, _ := strconv.ParseFloat(lex.text(), 64)
+		v.SetFloat(f)
+		lex.next()
+		return
+	case '#':
+		lex.next()
+		if lex.text() != "C" {
+			break
+		}
+		lex.next()
+		if lex.text() != "(" {
+			break
+		}
+		lex.next()
+		readList(lex, v)
+		lex.next() // consume ')'
+		return
 	case '(':
 		lex.next()
 		readList(lex, v)
@@ -105,6 +134,19 @@ func read(lex *lexer, v reflect.Value) {
 
 func readList(lex *lexer, v reflect.Value) {
 	switch v.Kind() {
+	case reflect.Complex128: // (real imag)
+		r, _ := strconv.ParseFloat(lex.text(), 64)
+		lex.next()
+		i, _ := strconv.ParseFloat(lex.text(), 64)
+		lex.next()
+		v.SetComplex(complex(r, i))
+	case reflect.Interface: // ("type" value)
+		s, _ := strconv.Unquote(lex.text()) // NOTE: ignoring errors
+		item := reflect.New(typeRegistry[s]).Elem()
+		lex.next()
+
+		read(lex, item)
+		v.Set(item)
 	case reflect.Array: // (item ...)
 		for i := 0; !endList(lex); i++ {
 			read(lex, v.Index(i))

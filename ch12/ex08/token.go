@@ -65,6 +65,7 @@ func readToChan(lex *lexer, c chan<- tokenResult) {
 		lex.next() // consume ')'
 		return
 	}
+	// これ多分リークしてる...
 	for {
 		c <- tokenResult{nil, fmt.Errorf("unexpected token %q", lex.text())}
 	}
